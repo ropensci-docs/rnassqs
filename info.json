@@ -1,0 +1,12 @@
+{
+  "commit": {
+    "commit": "1869a3372b50a46f5bfd07e26cd049271a779bb0",
+    "author": "Nicholas Potter <potterzot@gmail.com>",
+    "time": "2020-02-13 22:28:49",
+    "files": 9,
+    "merge": false,
+    "message": "fix and add tests for #25, updates to author list.\n"
+  },
+  "remote": "https://github.com/ropensci/rnassqs",
+  "pkg": "rnassqs"
+}
