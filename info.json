@@ -1,0 +1,12 @@
+{
+  "commit": {
+    "commit": "26931d93ce84a9ddc624c5e9a8f175a9a07cd340",
+    "author": "Nicholas Potter <477294+potterzot@users.noreply.github.com>",
+    "time": "2023-09-01 14:39:55",
+    "files": 1,
+    "merge": false,
+    "message": "add cran comments for submission.\n"
+  },
+  "repo": "https://github.com/ropensci/rnassqs",
+  "pkg": "rnassqs"
+}
