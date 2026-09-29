@@ -1,0 +1,415 @@
+# Using rnassqs
+
+`rnassqs` is a package to access the QuickStats API from national
+agricultural statistics service (NASS) at the USDA. There are at least
+two good reasons to do this:
+
+1.  **Reproducibility**. downloading the data via an R script creates a
+    trail that you can revisit later to see exactly what you downloaded.
+    It also makes it much easier for people seeking to replicate your
+    results to ensure they have the same data that you do.
+
+2.  **DRY**. Don’t repeat yourself. Downloading data via API makes it
+    easier to download new data as it is released, and to fetch multiple
+    variables, geographies, or time frames without having to manually
+    click through the QuickStats tool for each data request.
+
+In the beginning it can be more confusing, and potentially take more
+time, but as you become familiar with the variables and calls of the
+`rnassqs` package and the QuickStats database, you’ll be able to quickly
+and easily download new data.
+
+## API Information
+
+The USDA-NASS Quick Stats API has a graphic interface here:
+<https://quickstats.nass.usda.gov>. Information on the query parameters
+is found at <https://quickstats.nass.usda.gov/api/#param_define>.
+
+## A quick example
+
+First, obtain an API key from the ‘Quick Stats’ service:
+<https://quickstats.nass.usda.gov/api/>. Then we can make a query. Here
+we request the number of farm operators by operation acreage in Oregon
+in 2012.
+
+    library(rnassqs)
+
+    # Specify the query parameters
+    params <- list(
+      commodity_desc = "OPERATORS",
+      domain_desc = "AREA OPERATED"
+      agg_level_desc = "STATE",
+      state_alpha = "OR",
+      year = 2012
+    )
+
+    # Check that our record request is under the 50,000 limit
+    nassqs_record_count(params)
+
+    # Get the data
+    d <- nassqs(params)
+
+Parameters need not be specified in a list and need not be capitalized.
+The following is equivalent
+
+    # Get the data specifying each parameter as a separate argument to the 
+    # function `rnassqs`
+    d <- nassqs(commodity_desc = "operators", 
+                domain_desc = "area operated",
+                agg_level_desc = "state",
+                state_alpha = "or",
+                year = 2012)
+
+## Convenience functions
+
+A growing list of convenience functions makes querying simpler. For
+example, you can retrieve yields and acres with
+
+    # Set parameters
+    params <- list(
+      commodity_desc = "APPLES",
+      domaincat_desc = "NOT SPECIFIED"
+      agg_level_desc = "STATE",
+      state_alpha = "OR",
+      year = 2012
+    )
+
+    # Yields and Acres
+    yields <- nassqs_yields(params)
+    acres <- nassqs_acres(params)
+
+You can also query by a list of fips codes:
+
+    nassqs_byfips(
+      fips = c("19001", "17005", "17001"),
+      commodity_desc = "CORN",
+      year = 2019,
+      statisticcat_desc = "YIELD")
+
+## Detailed usage
+
+### Step 1: Authentication
+
+the QuickStats API requires authentication. You can get an API Key
+[here](https://quickstats.nass.usda.gov/api/). Once you have a key, you
+can use it in any of the following ways:
+
+#### Add it to your .Renviron file
+
+In your home directory create or edit the `.Renviron` file, and add
+`NASSQS_TOKEN = <your api key>` to the file. `R` sessions will have the
+variable set automatically, and `rnassqs` will detect this when querying
+data. If you use Rstudio, you can also use
+[`usethis::edit_r_environ`](https://usethis.r-lib.org/reference/edit.html)
+to open your `.Renviron` file and add the key. This will create a new
+system environmental variable when you start a new `R` session. You can
+also set the environmental variable directly with
+`Sys.setenv(NASSQS_TOKEN = <your api key>`.
+
+#### Put it in a file
+
+You can add a file to your project directory and ignore it via
+`.gitignore` if you’re using github. The advantage of this method is
+that you don’t have to think about the API key for the rest of the
+project, but you have to repeat this process for every new project, and
+you risk forgetting to add it to `.gitignore`. Once the api key is in a
+file, you can use it like this:
+
+    # Load the api key
+    api_key <- readLines("<file name with api key>")
+    nassqs_auth(key = api_key)
+
+#### Add it interactively
+
+If you don’t want to add the API key to a file or store it in your
+`.Renviron`, you can enter it in the console in a session. This is less
+easy because you have to enter (or copy-paste) the key each time you
+begin an `R` session. In addition, you won’t be able to automate running
+your script, since it will stop and ask you to provide an api key.
+
+    # Checks if the api key is set and prints it. 
+    # If it is not set, asks the user to set the value in the console.
+    nassqs_auth()
+
+### Step 2: Building Queries
+
+The QuickStats API offers a bewildering array of fields on which to
+query. `rnassqs` tries to help navigate query building with some
+functions that return parameter names and valid values for those
+parameters.
+[`nassqs_params()`](https://docs.ropensci.org/rnassqs/reference/nassqs_params.md)
+provides the parameter names, which at the time of this writing are
+
+``` r
+
+library(rnassqs)
+
+# returns a list of fields that you can query
+nassqs_params()
+#>  [1] "agg_level_desc"        "asd_code"              "asd_desc"             
+#>  [4] "begin_code"            "class_desc"            "commodity_desc"       
+#>  [7] "congr_district_code"   "country_code"          "country_name"         
+#> [10] "county_ansi"           "county_code"           "county_name"          
+#> [13] "domaincat_desc"        "domain_desc"           "end_code"             
+#> [16] "freq_desc"             "group_desc"            "load_time"            
+#> [19] "location_desc"         "prodn_practice_desc"   "reference_period_desc"
+#> [22] "region_desc"           "sector_desc"           "short_desc"           
+#> [25] "state_alpha"           "state_ansi"            "state_name"           
+#> [28] "state_fips_code"       "statisticcat_desc"     "source_desc"          
+#> [31] "unit_desc"             "util_practice_desc"    "watershed_code"       
+#> [34] "watershed_desc"        "week_ending"           "year"                 
+#> [37] "zip_5"
+```
+
+Including parameter names in `nassqs_params` will return a description
+of the parameter(s) in question:
+
+``` r
+
+nassqs_params("agg_level_desc", "source_desc")
+#> [1] "agg_level_desc: Geographical level of data. Often 'county', 'state', or 'national', but can include other levels as well"
+#> [2] "source_desc: Data source. Either 'CENSUS' or 'SURVEY'"
+```
+
+Documentation on all of the parameters is available at
+<https://quickstats.nass.usda.gov/api/#param_define>.
+
+A list of the valid values for a given field is available via
+`nassqs_param_values(param = <parameter name>)`. For example,
+
+    nassqs_param_values(param = 'source_desc')
+
+returns a list of valid values for the `source_desc` parameter.
+
+Building a query often involves some trial and error. One way of
+developing the query is to use the [QuickStats web
+interface](https://quickstats.nass.usda.gov/). This is often the fastest
+method and provides quick feedback on the subset of values for a given
+query. Alternatively, you can query values for each field as above and
+iteratively build your query. The query in the end takes the form of a
+list of parameters that looks like
+
+    params <- list(commodity_desc = "CORN", year__GE = 2012, state_alpha = "VA")
+
+#### Querying a range of values
+
+Most queries will probably be for specific values such as `year = 2012`,
+but you may also want to query ranges of values. For those queries,
+append one of the following to the field you’d like to modify:
+
+- \_\_LE: less than or equal
+- \_\_LT: less than
+- \_\_GE: greater than or equal
+- \_\_GT: greater than
+- \_\_LIKE: like
+- \_\_NOT_LIKE: not like
+- \_\_NE: not equal
+
+In the above parameter list, `year__GE` is the `year` field with the
+`__GE` modifier attached to it. The returned data includes all records
+with year greater than or equal to 2012.
+
+#### Querying multiple values
+
+Multiple values can be queried at once by including them in a simple
+list with [`c()`](https://rdrr.io/r/base/c.html). For example, if you’d
+like data from both Washington and Oregon, you can write
+`state_alpha = c('WA', 'OR')`.
+
+#### Query Limits: Total records per query
+
+The API only returns queries that return 50,000 or less records, so it’s
+a good idea to check that before running a query. Do do so, you can use
+[`nassqs_record_count()`](https://docs.ropensci.org/rnassqs/reference/nassqs_record_count.md).
+Combined with an assert from the `assertthat` package, you can ensure
+that your queries are valid before attempting to access the data:
+
+    # Check that the number of returned records will be less than 50000
+    params <- list(commodity_desc = "CORN", year__GE = 2012, state_alpha = "VA")
+    records <- nassqs_record_count(params)
+    assertthat::assert_that(as.integer(records$count) <= 50000)
+
+#### Query Limits: Total queries per second
+
+The API may return a 429 error (“Too Many Requests”) if the rate at
+which requests are sent is too high[^1]. `rnassqs` implements adaptive
+rate limiting to ensure API calls are made at a reasonable pace. By
+default, rate limits are five requests per second (i.e., 0.2 seconds per
+request). If Error 429 is encountered, functionality in
+[`nassqs_GET()`](https://docs.ropensci.org/rnassqs/reference/nassqs_GET.md)
+will retry at a slower rate based on `throttled_rate_seconds` (default =
+3 seconds per request).
+
+You can configure the rate limiting behavior using the
+[`nassqs_rate_limit()`](https://docs.ropensci.org/rnassqs/reference/nassqs_rate_limit.md)
+function:
+
+``` r
+
+# Slow slightly the rate of request to 2 queries per second, or 0.5 seconds between queries
+nassqs_rate_limit(rate_seconds = 0.5, throttled_rate_seconds = 2)
+
+# Restore default settings
+nassqs_rate_limit(rate_seconds = 0.2, override = FALSE)
+```
+
+### Step 3: Running Queries
+
+Once you’ve built a query, running it is easy:
+
+    # Run a query given a set of parameters and an API key
+    nassqs(params = params, key = api_key)
+
+### Step 4. Putting it all together
+
+Putting all of the above together, we have a script that looks like:
+
+    library(rnassqs)
+    library(assertthat) #for checking the size of the query
+
+    # Check for the API key. This prints the key if it is set, or asks for it
+    # if the session is interactive
+    nassqs_auth()
+
+    # Get a list of available fields
+    parameters <- nassq_params()
+
+    # Get valid values for 'commodity_desc'
+    nassqs_param_values(param = 'source_desc')
+
+    # Set a list of parameters to query on
+    params <- list(commodity_desc = "CORN", year__GE = 2012, state_alpha = "VA")
+
+    # Check that the number of returned records will be less than 50000
+    records <- nassqs_record_count(params)
+    assert_that(as.integer(records$count) <= 50000)
+
+    # Run a query given a set of parameters and an API key
+    d <- nassqs(params = params, key = api_key)
+
+    # Run the same query but parse into a data.frame separately
+    raw <- nassqs_GET(params = params, key = api_key)
+    parsed <- nassqs_parse(raw, as = 'data.frame')
+
+## Lists of parameters and dealing with large queries
+
+The ability of `rnassqs` to iterate over lists of parameters is
+especially helpful. In some cases you may wish to collect many different
+sets of data, and in others your queries may be larger than the API
+restriction of 50,000 records. In both cases iterating over a list of
+parameters is helpful.
+
+### Iterating to reduce individual query size
+
+Generally the best way to deal with large queries is to make multiple
+queries subset by year if possible, and by geography if not. Some care
+is needed if subsetting by geography. Due to suppression of data, the
+*sum of all counties in a state will not necessarily equal the state
+value*. Moreover, some data is collected only at specific geographies.
+It is best to start by iterating over years, so that if you want say all
+county cash rents on irrigated land for every year since they became
+available in 2008, you can iterate by doing the following:
+
+    # Define the list of parameters to use repeatedly
+    param_list <- list(
+      sector_desc = "ECONOMICS",
+      commodity_desc = "RENT",
+      prodn_practice_desc = "IRRIGATED",
+      class_desc = "CASH, CROPLAND",
+      agg_level_desc = "COUNTY",
+      domaincat_desc = "NOT SPECIFIED")
+
+    # Iterate through each year to get data  
+    data_list <- lapply(2008:2017, function(yr) {
+      params <- param_list
+      params[['year']] <- yr
+      nassqs(params)
+    })
+
+    # Using dplyr to bind the data list
+    library(dplyr)
+    df <- rbind_list(data_list)
+
+    # Using data.table to bind the data list
+    library(data.table)
+    dt <- rbindlist(data_list)
+
+Subsetting by geography works similarly, looping over the geography
+variable (usually `state_alpha` or `county_code` or the like) in lapply.
+
+### Iterating over lists of parameters
+
+Similar to above, at times it is helpful to make multiple queries and
+bind the data into a single `data.frame`. For example, you may want to
+collect the many different categories of acres for every Agricultural
+Census since 1997, which you can do with something like
+
+    # First define a base parameter list to modify for each new query
+    base_params <- list(
+      source_desc = "CENSUS",
+      sector_desc = "ECONOMICS",
+      commodity_desc = "AG LAND",
+      agg_level_desc = "COUNTY",
+      unit_desc = "ACRES",
+      statisticcat_desc = "AREA",
+      domain_desc = "TOTAL",
+      domaincat_desc = "NOT SPECIFIED",
+      year_GE = 1997
+    )
+
+    # List of parameters that vary for each query
+    param_list <- list(
+      ag_land_other = list(
+        class_desc = "(EXCL CROPLAND & PASTURELAND & WOODLAND)"), 
+      ag_land_irr = list(
+        prodn_practice_desc = "IRRIGATED",
+        class_desc = "ALL CLASSES"),
+      ag_woodland = list(
+        class_desc = "WOODLAND"),
+      ag_pastureland = list(
+        class_desc = "PASTURELAND, (EXCL CROPLAND & WOODLAND)"),
+      ag_cropland = list(
+        class_desc = "CROPLAND"),
+      ag_cropland_excl_harvested = list(
+        class_desc = "CROPLAND, (EXCL HARVESTED & PASTURED)"),
+      ag_cropland_harvested = list(
+        class_desc = "CROPLAND, HARVESTED",
+        prodn_practice_desc = "ALL PRODUCTION PRACTICES"),
+      ag_cropland_harvested_irr = list(
+        class_desc = "CROPLAND, HARVESTED",
+        prodn_practice_desc = "IRRIGATED")
+      )
+      
+      # Iterate through different variable queries
+      data_list <- lapply(param_list, function(var_params) {
+        # Create the new parameter list and append the query items that vary
+        # by query
+        params <- base_params
+        for(n in names(var_params)) { 
+          params[[n]] <- var_params[[n]]
+        }
+        nassqs(params)
+      })
+      
+      # Then rbind_list() or rbindlist() as above
+
+## Under the hood
+
+`nassqs` is a wrapper around the `nassqs_GET` function, which uses
+[`httr::GET`](https://httr.r-lib.org/reference/GET.html) to make an HTTP
+GET request to the Quick Stats API. If you need to access the underlying
+request object generated by the GET call, you can use `nassqs_GET` to
+return the request object. The `rnassqs` package also has a
+`nassqs_parse` function that will process a request object into a
+data.frame, list, or raw text. `nassqs` does handles both together, but
+you can replicate that functionality with low-level functions as
+follows:
+
+    # Make a HTTP GET request and parse into a data.frame with separate
+    # function calls. The below is equivalent to 
+    # 'nassqs(params, key = api_key)'
+    request <- nassqs_GET(params = params, key = api_key)
+    parsed <- nassqs_parse(request, as = 'data.frame')
+
+[^1]: According to communication shared at 2025 NASS Spring Users
+    Meeting, that is more than “100 calls per 5 minutes”.
